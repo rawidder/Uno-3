@@ -1,22 +1,9 @@
-// Service Worker für UNO Sieg-Zähler
-// Cache-First: nach dem ersten Laden läuft die App komplett offline.
-const CACHE = "uno-zaehler-v1";
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./apple-touch-icon.png",
-  "https://unpkg.com/react@18/umd/react.production.min.js",
-  "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
-  "https://unpkg.com/@babel/standalone/babel.min.js",
-];
+const CACHE = "uno-zaehler-v3";
+const ASSETS = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) =>
-      // einzeln hinzufügen, damit ein fehlgeschlagenes CDN-Asset die Installation nicht abbricht
       Promise.allSettled(ASSETS.map((url) => cache.add(url)))
     )
   );
@@ -36,15 +23,14 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
+      const fetchPromise = fetch(event.request)
         .then((resp) => {
-          // erfolgreiche Antworten zusätzlich cachen
           const copy = resp.clone();
           caches.open(CACHE).then((cache) => cache.put(event.request, copy));
           return resp;
         })
         .catch(() => cached);
+      return cached || fetchPromise;
     })
   );
 });
