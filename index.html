@@ -547,6 +547,67 @@ function Overlay({ children, onClose, title }) {
   );
 }
 
+// ===== Gespeicherte Namen (nur auf diesem Gerät) =====
+const SAVED_NAMES_KEY = "uno-saved-names";
+
+function loadSavedNames() {
+  try {
+    const list = JSON.parse(localStorage.getItem(SAVED_NAMES_KEY) || "[]");
+    return Array.isArray(list) ? list.filter(n => typeof n === "string" && n.trim()) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function storeSavedNames(list) {
+  try { localStorage.setItem(SAVED_NAMES_KEY, JSON.stringify(list)); } catch (err) {}
+}
+
+function sameName(a, b) {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+// Reihe mit Namen-Knöpfen; im Bearbeiten-Modus mit ✕ zum Löschen
+function SavedNames({ names, isUsed, onPick, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  if (names.length === 0) return null;
+  return e("div", { style: { width: "100%", marginBottom: "18px" } },
+    e("div", {
+      style: {
+        display: "flex", justifyContent: "space-between",
+        alignItems: "center", marginBottom: "10px",
+      }
+    },
+      e("span", { style: { fontSize: "18px", fontWeight: 700, opacity: 0.9 } },
+        editing ? "Namen löschen:" : "Gespeicherte Namen:"),
+      e("button", {
+        onClick: () => setEditing(!editing),
+        style: {
+          background: "none", border: "none", color: "#F9A800",
+          fontSize: "16px", fontWeight: 700, cursor: "pointer", padding: "4px",
+          fontFamily: "system-ui, sans-serif",
+        }
+      }, editing ? "Fertig" : "Bearbeiten")
+    ),
+    e("div", { style: { display: "flex", flexWrap: "wrap", gap: "8px" } },
+      ...names.map(nm => {
+        const used = isUsed(nm);
+        return e("button", {
+          key: nm,
+          onClick: () => editing ? onDelete(nm) : onPick(nm),
+          style: {
+            padding: "10px 16px", borderRadius: "999px",
+            fontSize: "18px", fontWeight: 700, cursor: "pointer",
+            border: "2px solid " + (editing ? "#D72600" : used ? "#379711" : "#555"),
+            background: editing ? "#2a1410" : used ? "#379711" : "#2a2a2a",
+            color: "#fff", fontFamily: "system-ui, sans-serif",
+          }
+        }, editing ? nm + "  ✕" : used ? "✓ " + nm : nm);
+      })
+    )
+  );
+}
+
 // ===== Main App =====
 function App() {
   const [phase, setPhase] = useState("setup");
@@ -559,7 +620,44 @@ function App() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [confetti, setConfetti] = useState(false);
   const [flashId, setFlashId] = useState(null);
+  const [savedNames, setSavedNames] = useState(loadSavedNames);
   const idRef = useRef(1);
+
+  // Getippte Namen merken; zuletzt benutzte stehen vorne
+  function rememberNames(list) {
+    const fresh = list.map(nm => nm.trim()).filter(Boolean);
+    if (fresh.length === 0) return;
+    setSavedNames(prev => {
+      const next = [...fresh, ...prev.filter(old => !fresh.some(nm => sameName(nm, old)))]
+        .filter((nm, i, all) => all.findIndex(o => sameName(o, nm)) === i);
+      storeSavedNames(next);
+      return next;
+    });
+  }
+
+  function forgetName(name) {
+    setSavedNames(prev => {
+      const next = prev.filter(nm => nm !== name);
+      storeSavedNames(next);
+      return next;
+    });
+  }
+
+  // Antippen trägt den Namen ins nächste freie Feld ein, nochmal antippen nimmt ihn wieder raus
+  function pickSetupName(name) {
+    const at = setupNames.findIndex(nm => nm.trim() && sameName(nm, name));
+    if (at >= 0) {
+      setSetupNames(prev => { const next = [...prev]; next[at] = ""; return next; });
+      return;
+    }
+    const free = setupNames.findIndex(nm => !nm.trim());
+    if (free >= 0) {
+      setSetupNames(prev => { const next = [...prev]; next[free] = name; return next; });
+    } else if (setupNames.length < 15) {
+      setSetupNames(prev => [...prev, name]);
+      setNumInput(setupNames.length + 1);
+    }
+  }
 
   function setupCountChange(n) {
     const count = Math.max(2, Math.min(15, n));
@@ -572,6 +670,7 @@ function App() {
   }
 
   function startGame() {
+    rememberNames(setupNames);
     const built = setupNames.map((nm, i) => ({
       id: idRef.current++,
       name: nm.trim() || ("Spieler " + (i+1)),
@@ -595,8 +694,9 @@ function App() {
     setPlayers(prev => prev.map(p => p.id === id ? { ...p, wins: Math.max(0, p.wins - 1) } : p));
   }
 
-  function addPlayer() {
-    const nm = newName.trim();
+  function addPlayer(picked) {
+    const nm = (typeof picked === "string" ? picked : newName).trim();
+    rememberNames([nm]);
     setPlayers(prev => [...prev, { id: idRef.current++, name: nm || ("Spieler " + (prev.length+1)), wins: 0 }]);
     setNewName("");
     setShowAdd(false);
@@ -696,6 +796,16 @@ function App() {
         )
       ),
 
+      // Gespeicherte Namen
+      e("div", { style: { width: "100%", maxWidth: "520px" } },
+        e(SavedNames, {
+          names: savedNames,
+          isUsed: nm => setupNames.some(s => s.trim() && sameName(s, nm)),
+          onPick: pickSetupName,
+          onDelete: forgetName,
+        })
+      ),
+
       // Namen-Eingabe
       e("div", {
         style: {
@@ -723,7 +833,7 @@ function App() {
               },
               placeholder: "Spieler " + (i+1),
               style: {
-                flex: 1, fontSize: "20px", fontWeight: 600,
+                flex: 1, minWidth: 0, fontSize: "20px", fontWeight: 600,
                 padding: "12px 16px", borderRadius: "12px",
                 border: "2px solid #444", background: "#222",
                 color: "#fff", outline: "none",
@@ -933,6 +1043,12 @@ function App() {
 
     // Spieler hinzufügen
     showAdd ? e(Overlay, { onClose: () => setShowAdd(false), title: "Spieler hinzufügen" },
+      e(SavedNames, {
+        names: savedNames.filter(nm => !players.some(p => sameName(p.name, nm))),
+        isUsed: () => false,
+        onPick: nm => addPlayer(nm),
+        onDelete: forgetName,
+      }),
       e("input", {
         autoFocus: true,
         value: newName,
