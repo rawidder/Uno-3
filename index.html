@@ -934,7 +934,7 @@ function App() {
       e("div", { style: { display: "flex", flexDirection: "column", gap: "4px" } },
         e("div", {
           style: {
-            display: "grid", gridTemplateColumns: "60px 1fr 90px",
+            display: "grid", gridTemplateColumns: "84px 1fr 90px",
             fontSize: "18px", fontWeight: 800, opacity: 0.7,
             padding: "0 8px 8px", borderBottom: "2px solid #444",
           }
@@ -944,16 +944,18 @@ function App() {
           e("span", { style: { textAlign: "right" } }, "Siege")
         ),
         ...sorted.map((p, idx) => {
-          const leader = idx === 0 && p.wins > 0;
+          // Gleiche Siegzahl = gleicher Platz (z. B. 1, 1, 1, 4)
+          const rank = 1 + sorted.filter(q => q.wins > p.wins).length;
+          const leader = rank === 1 && p.wins > 0;
           return e("div", {
             key: p.id,
             style: {
-              display: "grid", gridTemplateColumns: "60px 1fr 90px",
+              display: "grid", gridTemplateColumns: "84px 1fr 90px",
               alignItems: "center", padding: "12px 8px", borderRadius: "12px",
               background: leader ? "rgba(249,168,0,0.15)" : "transparent",
             }
           },
-            e("span", { style: { fontSize: "28px", fontWeight: 900 } }, leader ? "👑" : idx+1),
+            e("span", { style: { fontSize: "28px", fontWeight: 900, whiteSpace: "nowrap" } }, leader ? rank + " 👑" : rank),
             e("span", { style: { fontSize: "22px", fontWeight: 700 } }, p.name),
             e("span", {
               style: { fontSize: "30px", fontWeight: 900, textAlign: "right", color: "#F9A800" }
