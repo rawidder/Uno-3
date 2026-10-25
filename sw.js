@@ -1,4 +1,4 @@
-const CACHE = "uno-zaehler-v6";
+const CACHE = "uno-zaehler-v7";
 const ASSETS = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
